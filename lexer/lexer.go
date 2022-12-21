@@ -15,11 +15,11 @@ func New(input string) *Lexer {
 	l := &Lexer{
 		input: input,
 	}
-	l.ReadChar()
+	l.readChar()
 	return l
 }
 
-func (l *Lexer) ReadChar() {
+func (l *Lexer) readChar() {
 	if l.readPosition >= len(l.input) || l.readPosition < 0 {
 		// sets l.ch to 0, which is the ASCII code for the "NUL" character
 		l.ch = 0
@@ -32,6 +32,8 @@ func (l *Lexer) ReadChar() {
 
 func (l *Lexer) NextToken() token.Token {
 	var t token.Token
+	//skip the white space
+	l.skipWhitespace()
 
 	switch l.ch {
 	case '=':
@@ -53,9 +55,44 @@ func (l *Lexer) NextToken() token.Token {
 	case 0:
 		t.Literal = ""
 		t.Type = token.EOF
+	default:
+		if isLetter(l.ch) {
+			t.Literal = l.readIdentifier()
+			t.Type = token.CheckIdent(t.Literal)
+			return t
+
+		} else if isDigit(l.ch) {
+			t.Literal = l.readNumber()
+			t.Type = token.INT
+			return t
+		} else {
+			t = newToken(token.ILLEGAL, l.ch)
+		}
 	}
-	l.ReadChar()
+
+	l.readChar()
 	return t
+}
+func (l *Lexer) readIdentifier() string {
+	start := l.position
+	for isLetter(l.ch) {
+		l.readChar()
+	}
+	return l.input[start:l.position]
+}
+
+func (l *Lexer) readNumber() string {
+	start := l.position
+	for isDigit(l.ch) {
+		l.readChar()
+	}
+	return l.input[start:l.position]
+}
+
+func (l *Lexer) skipWhitespace() {
+	for l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r' {
+		l.readChar()
+	}
 }
 
 func newToken(tokenType token.TokenType, ch byte) token.Token {
@@ -63,4 +100,13 @@ func newToken(tokenType token.TokenType, ch byte) token.Token {
 		Type:    tokenType,
 		Literal: string(ch),
 	}
+}
+
+func isLetter(ch byte) bool {
+	//字母和下划线
+	return ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch == '_'
+}
+
+func isDigit(ch byte) bool {
+	return ch >= '0' && ch <= '9'
 }

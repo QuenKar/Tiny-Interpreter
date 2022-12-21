@@ -29,3 +29,15 @@ const (
 	LET      = "LET"
 )
 
+var keywords = map[string]TokenType{
+	"fn":  FUNCTION,
+	"let": LET,
+}
+
+func CheckIdent(ident string) TokenType {
+	if tokT, ok := keywords[ident]; ok {
+		return tokT
+	}
+	//If it isn’t, we just get back token.IDENT, which is the TokenType for all user-defined identifiers.
+	return IDENT
+}
