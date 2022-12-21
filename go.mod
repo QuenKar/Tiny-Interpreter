@@ -1,3 +1,3 @@
-module my-Interpreter
+module interpreter
 
 go 1.17
