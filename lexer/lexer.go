@@ -30,6 +30,16 @@ func (l *Lexer) readChar() {
 	l.readPosition += 1
 }
 
+//获取下一个pos的char
+func (l *Lexer) peekChar() byte {
+	if l.readPosition >= len(l.input) || l.readPosition < 0 {
+		// return the ASCII code for the "NUL" character
+		return 0
+	} else {
+		return l.input[l.readPosition]
+	}
+}
+
 func (l *Lexer) NextToken() token.Token {
 	var t token.Token
 	//skip the white space
@@ -37,7 +47,13 @@ func (l *Lexer) NextToken() token.Token {
 
 	switch l.ch {
 	case '=':
-		t = newToken(token.ASSIGN, l.ch)
+		if l.peekChar() == '=' {
+			c := l.ch
+			l.readChar()
+			t = token.Token{Type: token.EQ, Literal: string(c) + string(l.ch)}
+		} else {
+			t = newToken(token.ASSIGN, l.ch)
+		}
 	case ';':
 		t = newToken(token.SEMICOLON, l.ch)
 	case '(':
@@ -47,7 +63,13 @@ func (l *Lexer) NextToken() token.Token {
 	case ',':
 		t = newToken(token.COMMA, l.ch)
 	case '!':
-		t = newToken(token.BANG, l.ch)
+		if l.peekChar() == '=' {
+			c := l.ch
+			l.readChar()
+			t = token.Token{Type: token.NOT_EQ, Literal: string(c) + string(l.ch)}
+		} else {
+			t = newToken(token.BANG, l.ch)
+		}
 	case '+':
 		t = newToken(token.PLUS, l.ch)
 	case '-':
