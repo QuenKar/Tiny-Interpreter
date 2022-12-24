@@ -61,6 +61,10 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.IDENT, p.parseIdentfier)
 	//Integer
 	p.registerPrefix(token.INT, p.parseIntegerLiteral)
+	// !
+	p.registerPrefix(token.BANG, p.parsePrefixExpression)
+	// -
+	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
 
 	return p
 }
@@ -163,10 +167,12 @@ func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 func (p *Parser) parseExpression(precedence int) ast.Expression {
 	prefix := p.prefixParseFns[p.curToken.Type]
 	if prefix == nil {
+		p.noPrefixParseFnError(p.curToken.Type)
 		return nil
 	}
 
 	leftExp := prefix()
+
 	return leftExp
 }
 
@@ -221,4 +227,26 @@ func (p *Parser) parseIntegerLiteral() ast.Expression {
 	}
 	literal.Value = value
 	return literal
+}
+
+/*
+When parsePrefixExpression is called, p.curToken is either of type
+token.BANG or token.MINUS,But in order to correctly parse a prefix
+expression like -5 more than one token has to be “consumed”. So
+after using p.curToken to build a *ast.PrefixExpression node, the
+method advances the tokens and calls parseExpression again.
+*/
+func (p *Parser) parsePrefixExpression() ast.Expression {
+	expression := &ast.PrefixExpression{
+		Token:    p.curToken,
+		Operator: p.curToken.Literal,
+	}
+	p.nextToken()
+	expression.Right = p.parseExpression(PREFIX)
+
+	return expression
+}
+
+func (p *Parser) noPrefixParseFnError(t token.TokenType) {
+	p.errors = append(p.errors, fmt.Sprintf("no prefix parse function for %s found", t))
 }
