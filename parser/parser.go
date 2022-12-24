@@ -16,10 +16,10 @@ import (
 const (
 	_           int = iota
 	LOWEST          //default lowest precedence
-	EQUALS          //==
+	EQUALS          //== or !=
 	LESSGREATER     //> or <
 	SUM             //+
-	PRODUCT         //*
+	PRODUCT         //* or /
 	PREFIX          //!x or -x...
 	CALL            //myfunc(x)
 )
@@ -30,6 +30,17 @@ type (
 	prefixParseFn func() ast.Expression               //no need of argument
 	infixParseFn  func(ast.Expression) ast.Expression //This argument is “left side” of the infix operator that’s being parsed.
 )
+
+var precedences = map[token.TokenType]int{
+	token.EQ:       EQUALS,
+	token.NOT_EQ:   EQUALS,
+	token.LT:       LESSGREATER,
+	token.GT:       LESSGREATER,
+	token.PLUS:     SUM,
+	token.MINUS:    SUM,
+	token.SLASH:    PRODUCT,
+	token.ASTERISK: PRODUCT,
+}
 
 // we need to look at the curToken, which is the current token under
 // examination, to decide what to do next, and we also need peekToken for this decision if curToken
@@ -55,7 +66,7 @@ func New(l *lexer.Lexer) *Parser {
 	//init curToken and peekToken
 	p.nextToken()
 	p.nextToken()
-
+	//for prefix
 	p.prefixParseFns = make(map[token.TokenType]prefixParseFn)
 	//Identifiers
 	p.registerPrefix(token.IDENT, p.parseIdentfier)
@@ -65,6 +76,17 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.BANG, p.parsePrefixExpression)
 	// -
 	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
+
+	//for infix
+	p.infixParseFns = make(map[token.TokenType]infixParseFn)
+	p.registerInfix(token.PLUS, p.parseInfixExpression)
+	p.registerInfix(token.MINUS, p.parseInfixExpression)
+	p.registerInfix(token.SLASH, p.parseInfixExpression)
+	p.registerInfix(token.ASTERISK, p.parseInfixExpression)
+	p.registerInfix(token.EQ, p.parseInfixExpression)
+	p.registerInfix(token.NOT_EQ, p.parseInfixExpression)
+	p.registerInfix(token.LT, p.parseInfixExpression)
+	p.registerInfix(token.GT, p.parseInfixExpression)
 
 	return p
 }
@@ -163,8 +185,12 @@ func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 	return stmt
 }
 
-//
+//???这个precedence怎么理解呢？
+//right-binding power: the higher it is, the more tokens/operators/operands
+//to the right of the current expressions (the future peek tokens) can we “bind” to it
+//think about Expression:  1 + 2 * 3
 func (p *Parser) parseExpression(precedence int) ast.Expression {
+	//deal with prefix
 	prefix := p.prefixParseFns[p.curToken.Type]
 	if prefix == nil {
 		p.noPrefixParseFnError(p.curToken.Type)
@@ -172,6 +198,19 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 	}
 
 	leftExp := prefix()
+
+	//deal with infix
+	//precedence < p.peekPrecedence():This condition checks if the left-binding power of
+	//the next operator/token is higher than our current right-binding power. I
+	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
+		infix := p.infixParseFns[p.peekToken.Type]
+		if infix == nil {
+			return leftExp
+		}
+		p.nextToken()
+
+		leftExp = infix(leftExp)
+	}
 
 	return leftExp
 }
@@ -247,6 +286,34 @@ func (p *Parser) parsePrefixExpression() ast.Expression {
 	return expression
 }
 
+func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
+	expression := &ast.InfixExpression{
+		Token:    p.curToken,
+		Left:     left,
+		Operator: p.curToken.Literal,
+	}
+
+	curP := p.curPrecedence()
+	p.nextToken()
+	expression.Right = p.parseExpression(curP)
+
+	return expression
+}
+
 func (p *Parser) noPrefixParseFnError(t token.TokenType) {
 	p.errors = append(p.errors, fmt.Sprintf("no prefix parse function for %s found", t))
+}
+
+func (p *Parser) curPrecedence() int {
+	if precedence, ok := precedences[p.curToken.Type]; ok {
+		return precedence
+	}
+	return LOWEST
+}
+
+func (p *Parser) peekPrecedence() int {
+	if precedence, ok := precedences[p.peekToken.Type]; ok {
+		return precedence
+	}
+	return LOWEST
 }
