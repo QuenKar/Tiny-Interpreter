@@ -79,6 +79,8 @@ func New(l *lexer.Lexer) *Parser {
 	//true and false
 	p.registerPrefix(token.TRUE, p.parseBoolean)
 	p.registerPrefix(token.FALSE, p.parseBoolean)
+	// ( 2 + 3 )
+	p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
 
 	//for infix
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
@@ -188,7 +190,7 @@ func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 	return stmt
 }
 
-//???这个precedence怎么理解呢？
+//How to understand "precedence" parameter ???
 //right-binding power: the higher it is, the more tokens/operators/operands
 //to the right of the current expressions (the future peek tokens) can we “bind” to it
 //think about Expression:  1 + 2 * 3
@@ -323,4 +325,18 @@ func (p *Parser) peekPrecedence() int {
 
 func (p *Parser) parseBoolean() ast.Expression {
 	return &ast.Boolean{Token: p.curToken, Value: p.curTokenIs(token.TRUE)}
+}
+
+/*
+Think about ( 2 + 3 )
+when encounter ')', p.parseExpression function will return
+because ')' precedence is LOWEST
+*/
+func (p *Parser) parseGroupedExpression() ast.Expression {
+	p.nextToken()
+	exp := p.parseExpression(LOWEST)
+	if !p.expectPeek(token.RPAREN) {
+		return nil
+	}
+	return exp
 }
