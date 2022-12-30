@@ -163,8 +163,9 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 		return nil
 	}
 
-	//TODO
+	p.nextToken()
 	//cope with expression
+	stmt.Value = p.parseExpression(LOWEST)
 
 	//skip expression until semicolon
 	for !p.curTokenIs(token.SEMICOLON) {
@@ -182,6 +183,8 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 	}
 	p.nextToken()
 	//TODO:deal with ReturnValue
+
+	stmt.ReturnValue = p.parseExpression(LOWEST)
 
 	//skip expression until semicolon
 	for !p.curTokenIs(token.SEMICOLON) {
@@ -240,7 +243,7 @@ func (p *Parser) parseIdentfier() ast.Expression {
 	return &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 }
 
-//Test next token, and if true: move to next, if false: errors
+//Test next token, and if true: move to the next token, if false: errors
 func (p *Parser) expectPeek(t token.TokenType) bool {
 	if p.peekTokenIs(t) {
 		p.nextToken()
