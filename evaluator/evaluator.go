@@ -12,6 +12,24 @@ var (
 	FALSE = &object.Boolean{Value: false}
 )
 
+var builtins = map[string]*object.Builtin{
+	"len": &object.Builtin{
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return newError("wrong number of arguments. got=%d, want=1",
+					len(args))
+			}
+			switch arg := args[0].(type) {
+			case *object.String:
+				return &object.Integer{Value: int64(len(arg.Value))}
+			default:
+				return newError("argument to `len` not supported, got %s",
+					args[0].Type())
+			}
+		},
+	},
+}
+
 func Eval(node ast.Node, env *object.Environment) object.Object {
 	switch node := node.(type) {
 	// Statements
@@ -25,11 +43,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		}
 		env.Set(node.Name.Value, val)
 	case *ast.Identifier:
-		val, ok := env.Get(node.Value)
-		if !ok {
-			return newError("identifier not found: " + node.Value)
-		}
-		return val
+		return evalIdentifier(node, env)
 	case *ast.ExpressionStatement:
 		return Eval(node.Expression, env)
 	case *ast.IntegerLiteral:
@@ -262,13 +276,17 @@ func evalExpressions(exps []ast.Expression, env *object.Environment) []object.Ob
 }
 
 func callFunction(fn object.Object, args []object.Object) object.Object {
-	function, ok := fn.(*object.Function)
-	if !ok {
+	switch fn := fn.(type) {
+	case *object.Function:
+		extendEnv := extendFunctionEnv(fn, args)
+		evaluated := Eval(fn.Body, extendEnv)
+		return unwrapReturnValue(evaluated)
+
+	case *object.Builtin:
+		return fn.Fn(args...)
+	default:
 		return newError("not a function: %s", fn.Type())
 	}
-	extendEnv := extendFunctionEnv(function, args)
-	evaluated := Eval(function.Body, extendEnv)
-	return unwrapReturnValue(evaluated)
 }
 
 func extendFunctionEnv(function *object.Function, args []object.Object) *object.Environment {
@@ -284,4 +302,14 @@ func unwrapReturnValue(obj object.Object) object.Object {
 		return returnValue.Value
 	}
 	return obj
+}
+
+func evalIdentifier(node *ast.Identifier, env *object.Environment) object.Object {
+	if val, ok := env.Get(node.Value); ok {
+		return val
+	}
+	if builtin, ok := builtins[node.Value]; ok {
+		return builtin
+	}
+	return newError("identifier not found: " + node.Value)
 }
